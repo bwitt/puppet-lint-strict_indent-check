@@ -142,11 +142,7 @@ PuppetLint.new_check(:strict_indent) do
                  # Lines containing heredocs have no indent token as the indent is consumed by the heredoc token.
                  # However the last line of the token value is the whitespace before the pipe in the termination line.
                  # We use the length of this to get the indent.
-                 if token.next_token.value.end_with?("\n")
-                   0
-                 else
-                   token.next_token.value.split("\n").last.length
-                 end
+                 token.next_token.value[/[^\n]*\z/].length
                when :HEREDOC_PRE
                  # For interpolated heredocs the pipe whitespace is in the HEREDOC_POST token so we need scan forward
                  # to this and get its length.
@@ -155,7 +151,8 @@ PuppetLint.new_check(:strict_indent) do
                    next_token = next_token.next_token
                  end
                  if next_token.type == :HEREDOC_POST
-                   next_token.value.split("\n").last.length
+                   # the value is empty or ends with a newline if the end tag is not indented
+                   next_token.value[/[^\n]*\z/].length
                  else
                    # Should never get here return zero if we do
                    0
