@@ -196,6 +196,9 @@ PuppetLint.new_check(:strict_indent) do
   end
 
   def fix(problem)
+    # errors calculating the indent have no token to fix
+    raise PuppetLint::NoFix if problem[:token].nil?
+
     char_for_indent = ' '
     if %i[INDENT WHITESPACE].include?(problem[:token].type)
       problem[:token].value = char_for_indent * problem[:indent]

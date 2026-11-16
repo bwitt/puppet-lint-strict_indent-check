@@ -80,6 +80,13 @@ describe 'strict_indent' do
     end
   end
 
+  context 'fixing an indent calculation error' do
+    it 'does not attempt a fix' do
+      check = PuppetLint.configuration.check_object[:strict_indent].new
+      expect { check.fix({ kind: :error, message: 'Error calculating indent' }) }.to raise_error(PuppetLint::NoFix)
+    end
+  end
+
   context 'blank line at beginning of file' do
     let(:code) do
       <<-EOF.gsub(/^ {8}/, '')
