@@ -33,12 +33,22 @@ PuppetLint.new_check(:strict_indent) do
     matches
   end
 
+  # Map each token to its logical line, as multi-line strings span several physical lines.
+  def logical_lines(tokens)
+    line = 0
+    tokens.to_h do |token|
+      line += 1 if token.type == :NEWLINE
+      [token, line]
+    end
+  end
+
   def check
     chars_per_indent = PuppetLint.configuration.chars_per_indent || 2
     indent = 0
     colon_indent = nil
 
     matches = match(tokens)
+    lines = logical_lines(tokens)
 
     tokens.select do |token|
       token.type == :NEWLINE
@@ -57,10 +67,10 @@ PuppetLint.new_check(:strict_indent) do
         if %i[LBRACE LBRACK LPAREN].include?(prev_token.type)
           if matches[prev_token].nil?
             open_groups += 1
-          elsif (matches[prev_token].line > prev_token.line) && !matched_open_lines.include?(matches[prev_token].line)
+          elsif (lines[matches[prev_token]] > lines[prev_token]) && !matched_open_lines.include?(lines[matches[prev_token]])
             # increase indent for left braces not matched in the same line or in a line we have already matched a brace to
             open_groups += 1
-            matched_open_lines << matches[prev_token].line
+            matched_open_lines << lines[matches[prev_token]]
           end
         end
         prev_token = prev_token.prev_token
@@ -80,7 +90,7 @@ PuppetLint.new_check(:strict_indent) do
         if open_groups.zero?
           if colon_indent.nil?
             # only indent for a colon when you haven't indented yet
-            colon_indent = prev_token.line
+            colon_indent = lines[prev_token]
             indent += 1
           else
             # you probably missed a semicolon two lines ago
@@ -102,13 +112,14 @@ PuppetLint.new_check(:strict_indent) do
       while !next_token.nil? && (next_token.type != :NEWLINE)
         if %i[RBRACE RBRACK RPAREN].include?(next_token.type)
           if !matches[next_token].nil? &&
-             (matches[next_token].line < next_token.line) &&
-             !matched_close_lines.include?(matches[next_token].line)
+             (lines[matches[next_token]] < lines[next_token]) &&
+             !matched_close_lines.include?(lines[matches[next_token]])
             # right braces matched in a previous line decrease indent unless we already matched a brace in the same line
             indent -= 1
-            matched_close_lines << matches[next_token].line
+            matched_close_lines << lines[matches[next_token]]
           end
-          if (next_token.type == :RBRACE) && !colon_indent.nil? && !matches[next_token].nil? && (matches[next_token].line < colon_indent)
+          if (next_token.type == :RBRACE) && !colon_indent.nil? && !matches[next_token].nil? &&
+             (lines[matches[next_token]] < colon_indent)
             # unindent at the end of resources if needed
             indent -= 1
             colon_indent = nil
@@ -126,7 +137,7 @@ PuppetLint.new_check(:strict_indent) do
       # obviously we have a problem
       if indent.negative?
         notify :error, {
-          message: 'Error calculating indent. Please file an issue at https://github.com/relud/puppet-lint-indent-check/issues',
+          message: 'Error calculating indent. Please file an issue at https://github.com/voxpupuli/puppet-lint-strict_indent-check/issues',
           line: token.next_token.line,
           column: token.next_token.column,
         }
